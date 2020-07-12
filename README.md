@@ -1,3 +1,3 @@
 # Multi-Period Portfolio Optimisation
 
-More coming...
+My humble attempt to re-write [`cvxportfolio` package](https://github.com/cvxgrp/cvxportfolio).

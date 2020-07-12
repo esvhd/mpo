@@ -3,3 +3,4 @@ numpy
 cvxpy
 datetime
 typing
+pytest
