@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import cvxpy as cvx
 from cvxpy.expressions.expression import Expression
@@ -46,15 +47,45 @@ def test_MPOReturnForecast_weighted_returns_multi_date():
 def test_mpo_simple():
     # test MPO with no t-cost and constraints
     N = 10
-    rtns = sim.generate_forecasts(n_periods=3, N=N)
+    rtns = sim.generate_forecasts(n_periods=3, N=N, seed=9984)
     forecasts = M.MPOReturnForecast(rtns)
+    exp_max = rtns.values[range(len(rtns)), rtns.idxmax(axis=1).values].sum()
 
     init_mkt_values = pd.Series([100.0 for _ in range(N)])
 
     cons = [C.LongOnly()]
 
     prob = M.MPO(forecasts, constraints=cons)
-    trade_vals = prob.solve(init_mkt_values, verbose=True)
+    trade_vals, obj_val = prob.solve(init_mkt_values, verbose=True)
+
+    assert np.isclose(obj_val, exp_max, rtol=1.0e-7)
+    assert len(trade_vals) == N
+    print(f"Trade values = {trade_vals}")
+
+
+def test_mpo_tcost():
+    # test MPO with no t-cost and constraints
+    N = 10
+    rtns = sim.generate_forecasts(n_periods=3, N=N, seed=9984)
+    # simulate cash = 0 return
+    rtns.values[:, -1] = 0
+    forecasts = M.MPOReturnForecast(rtns)
+
+    init_mkt_values = pd.Series([100.0 for _ in range(N)])
+
+    # tcost, test constant tcost
+    # stay in cash for the first trade
+    tcost = np.ones_like(rtns) * 0.14
+    # cash has no tcost
+    tcost[:, -1] = 0.0
+    costs = [C.TCost(tcost)]
+
+    cons = [C.LongOnly()]
+
+    prob = M.MPO(forecasts, constraints=cons, costs=costs)
+    trade_vals, obj_val = prob.solve(init_mkt_values, verbose=True)
 
     assert len(trade_vals) == N
     print(f"Trade values = {trade_vals}")
+
+    assert np.isclose(obj_val, 0.14478828790994064, rtol=1.0e-7)

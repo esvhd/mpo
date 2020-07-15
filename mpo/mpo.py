@@ -5,6 +5,8 @@ from cvxpy.expressions.expression import Expression
 import cvxpy as cvx
 from typing import Iterable, Dict, Union
 
+import mpo.constraints as C
+
 
 class MPOReturnForecast(object):
     def __init__(self, forecasts: pd.DataFrame):
@@ -126,14 +128,41 @@ class MPO(object):
 
             obj = self.forecasts.weighted_returns_multi(w_next, start=tau)
 
+            # add tcosts:
+            if self.costs is not None:
+                kwargs = {
+                    C.KEY_WEIGHTS: w_next,
+                    C.KEY_TRADE_WEIGHTS: z,
+                    C.KEY_STEP: tau,
+                }
+                # cost for all steps
+                step_costs = [tc.eval(**kwargs) for tc in self.costs]
+
+                if verbose:
+                    print(f"Added {len(step_costs)} steps of T-costs.")
+
+                # validation
+                convex_flags = [tc.is_convex() for tc in step_costs]
+                assert np.all(convex_flags)
+
+                # add cost to objective function, i.e. reduce returns / rewards
+                obj -= cvx.sum(step_costs)
+
             # trades must self fund
             con_exps = [cvx.Zero(cvx.sum(z))]
 
             # add other constraints
             if self.constraints is not None:
-                kwargs = {"weights": w_next, "trades": z}
+                kwargs = {
+                    C.KEY_WEIGHTS: w_next,
+                    C.KEY_TRADE_WEIGHTS: z,
+                    C.KEY_STEP: tau,
+                }
                 cons = [con.eval(**kwargs) for con in self.constraints]
                 con_exps += cons
+
+            # validate that all constraints are DCP
+            assert np.all((c.is_dcp() for c in con_exps))
 
             prob = cvx.Problem(cvx.Maximize(obj), constraints=con_exps)
             sub_problems.append(prob)
@@ -172,4 +201,4 @@ class MPO(object):
             z_vars[0].value * nav, index=init_mkt_values.index
         )
 
-        return trade_values
+        return trade_values, obj_value

@@ -4,7 +4,7 @@ import datetime as dt
 from typing import Tuple
 
 
-def generate_factor_returns(T: int, K: int, N: int) -> Tuple:
+def generate_factor_returns(T: int, K: int, N: int, seed=None) -> Tuple:
     """Generate normally distributed random returns for N periods of K factors.
 
     Parameters
@@ -28,6 +28,9 @@ def generate_factor_returns(T: int, K: int, N: int) -> Tuple:
         V : np.ndarray
             Asset covariance, (N, N)
     """
+    if seed is not None:
+        np.random.seed(seed)
+
     # r_factor = factor return, divide by 100 to scale down
     r_factor = np.random.randn(T, K) / 10.0
 
@@ -46,7 +49,9 @@ def generate_factor_returns(T: int, K: int, N: int) -> Tuple:
     return (r_factor, F, X, V)
 
 
-def generate_forecasts(n_periods: int = 2, N: int = 10) -> pd.DataFrame:
+def generate_forecasts(
+    n_periods: int = 2, N: int = 10, seed=None
+) -> pd.DataFrame:
     """Generate multi-period return forecasts.
 
     Parameters
@@ -66,6 +71,9 @@ def generate_forecasts(n_periods: int = 2, N: int = 10) -> pd.DataFrame:
     periods = pd.date_range(
         start=dt.datetime.today().date(), periods=n_periods, freq="B"
     )
+
+    if seed is not None:
+        np.random.seed(seed)
 
     # random forcasts
     forecasts = pd.DataFrame(
