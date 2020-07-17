@@ -43,10 +43,12 @@ def generate_factor_returns(T: int, K: int, N: int, seed=None) -> Tuple:
     # generate factor exposure
     X = np.random.randn(N, K)
 
-    # covariance matrix
+    # covariance matrix, assumptions is specific risk covariance = 0
     V = X @ F @ X.T
 
-    return (r_factor, F, X, V)
+    specific_cov = np.zeros((N, N))
+
+    return (r_factor, F, X, V, specific_cov)
 
 
 def generate_forecasts(

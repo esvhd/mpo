@@ -6,6 +6,7 @@ import cvxpy as cvx
 from typing import Iterable, Dict, Union
 
 import mpo.constraints as C
+from mpo.common import KEY_WEIGHTS, KEY_TRADE_WEIGHTS, KEY_STEP
 
 
 class MPOReturnForecast(object):
@@ -80,8 +81,8 @@ class MPO(object):
         forecasts: MPOReturnForecast,
         # trading_times,
         terminal_weights: pd.Series = None,
-        costs: Iterable = None,
-        constraints: Iterable = None,
+        costs: Iterable[C.BaseCost] = None,
+        constraints: Iterable[C.BaseConstraint] = None,
         # lookahead_periods=None,
         solver=None,
         solver_opts: Dict = None,
@@ -131,9 +132,9 @@ class MPO(object):
             # add tcosts:
             if self.costs is not None:
                 kwargs = {
-                    C.KEY_WEIGHTS: w_next,
-                    C.KEY_TRADE_WEIGHTS: z,
-                    C.KEY_STEP: tau,
+                    KEY_WEIGHTS: w_next,
+                    KEY_TRADE_WEIGHTS: z,
+                    KEY_STEP: tau,
                 }
                 # cost for all steps
                 step_costs = [tc.eval(**kwargs) for tc in self.costs]
@@ -154,9 +155,9 @@ class MPO(object):
             # add other constraints
             if self.constraints is not None:
                 kwargs = {
-                    C.KEY_WEIGHTS: w_next,
-                    C.KEY_TRADE_WEIGHTS: z,
-                    C.KEY_STEP: tau,
+                    KEY_WEIGHTS: w_next,
+                    KEY_TRADE_WEIGHTS: z,
+                    KEY_STEP: tau,
                 }
                 cons = [con.eval(**kwargs) for con in self.constraints]
                 con_exps += cons

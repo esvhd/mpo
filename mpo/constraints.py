@@ -3,13 +3,13 @@ import pandas as pd
 from typing import Union
 from abc import abstractmethod
 import cvxpy as cvx
-
 from cvxpy.expressions.expression import Expression
 
+from mpo.common import KEY_WEIGHTS, KEY_STEP
 
-KEY_WEIGHTS = "weights"
-KEY_TRADE_WEIGHTS = "trades"
-KEY_STEP = "timestep"
+# KEY_WEIGHTS = "weights"
+# KEY_TRADE_WEIGHTS = "trades"
+# KEY_STEP = "timestep"
 
 
 class BaseConstraint(object):
@@ -72,7 +72,16 @@ class MinCash(BaseConstraint):
         return weights[-1] >= self.min_weight
 
 
-class TCost(object):
+class BaseCost(object):
+    def __init__(self):
+        super().__init__()
+
+    @abstractmethod
+    def eval(self, **kwargs) -> Expression:
+        pass
+
+
+class TCost(BaseCost):
     def __init__(self, tcost_weights: Union[np.ndarray, pd.DataFrame]):
         """Transaction cost data. Here I leave tcost forecasting to a separate
         tasks, and we use the output directly here.
