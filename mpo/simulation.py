@@ -38,7 +38,7 @@ def generate_factor_returns(T: int, K: int, N: int, seed=None) -> Tuple:
     F = np.cov(r_factor.T)
 
     # check for positive definite
-    assert np.all(np.linalg.eigvals(F) > 0), "Covariance not Positive-Definite."
+    # assert np.all(np.linalg.eigvals(F) > 0), "Covariance not Positive-Definite."
 
     # generate factor exposure
     X = np.random.randn(N, K)

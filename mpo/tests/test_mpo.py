@@ -5,6 +5,7 @@ from cvxpy.expressions.expression import Expression
 import mpo.mpo as M
 import mpo.constraints as C
 import mpo.simulation as sim
+import mpo.risk as risk
 
 
 def test_MPOReturnForecast_weighted_returns():
@@ -89,3 +90,52 @@ def test_mpo_tcost():
     print(f"Trade values = {trade_vals}")
 
     assert np.isclose(obj_val, 0.14478828790994064, rtol=1.0e-7)
+
+
+def test_factor_penalty():
+    # build risk model
+    _, factor_cov, factor_exp, _, spec_cov = sim.generate_factor_returns(
+        T=3, K=5, N=10
+    )
+    # TODO build 3D risk models
+    factor_cov_arr = np.tile(factor_cov.reshape((-1, 1)), 3).T.reshape(
+        (3, 5, 5)
+    )
+    factor_exp_arr = np.tile(factor_exp.reshape((-1, 1)), 3).T.reshape(
+        (3, 10, 5)
+    )
+    spec_cov_arr = np.tile(spec_cov.reshape((-1, 1)), 3).T.reshape((3, 10, 10))
+
+    model = risk.FactorRiskModel(
+        factor_exp_arr, factor_cov_arr, spec_cov_arr, has_benchmark=False
+    )
+
+    gamma = 1.0
+    penalty = risk.RiskPenalty(gamma, model)
+
+    # test MPO with no t-cost and constraints
+    N = 10
+    rtns = sim.generate_forecasts(n_periods=3, N=N, seed=9984)
+    # simulate cash = 0 return
+    rtns.values[:, -1] = 0
+    forecasts = M.MPOReturnForecast(rtns)
+
+    init_mkt_values = pd.Series([100.0 for _ in range(N)])
+
+    # tcost, test constant tcost
+    # stay in cash for the first trade
+    tcost = np.ones_like(rtns) * 0.14
+    # cash has no tcost
+    tcost[:, -1] = 0.0
+    costs = [C.TCost(tcost)]
+
+    cons = [C.LongOnly()]
+
+    # add risk model
+    prob = M.MPO(forecasts, constraints=cons, costs=costs, risk_penalty=penalty)
+    trade_vals, obj_val = prob.solve(init_mkt_values, verbose=True)
+
+    assert len(trade_vals) == N
+    print(f"Trade values = {trade_vals}")
+
+    # assert np.isclose(obj_val, 0.14478828790994064, rtol=1.0e-7)

@@ -6,6 +6,7 @@ import cvxpy as cvx
 from typing import Iterable, Dict, Union
 
 import mpo.constraints as C
+import mpo.risk as risk
 from mpo.common import KEY_WEIGHTS, KEY_TRADE_WEIGHTS, KEY_STEP
 
 
@@ -79,11 +80,10 @@ class MPO(object):
     def __init__(
         self,
         forecasts: MPOReturnForecast,
-        # trading_times,
         terminal_weights: pd.Series = None,
         costs: Iterable[C.BaseCost] = None,
         constraints: Iterable[C.BaseConstraint] = None,
-        # lookahead_periods=None,
+        risk_penalty: risk.RiskPenalty = None,
         solver=None,
         solver_opts: Dict = None,
     ):
@@ -104,6 +104,7 @@ class MPO(object):
                 self.constraints.append(constraint)
 
         self.terminal_weights = terminal_weights
+        self.risk_penalty = risk_penalty
         self.solver = solver
         self.solver_opts = {} if solver_opts is None else solver_opts
 
@@ -127,15 +128,13 @@ class MPO(object):
             # next period weights = current weight + trade weights
             w_next = w + z
 
+            kwargs = {KEY_WEIGHTS: w_next, KEY_TRADE_WEIGHTS: z, KEY_STEP: tau}
+
             obj = self.forecasts.weighted_returns_multi(w_next, start=tau)
+            assert obj.is_dcp()
 
             # add tcosts:
             if self.costs is not None:
-                kwargs = {
-                    KEY_WEIGHTS: w_next,
-                    KEY_TRADE_WEIGHTS: z,
-                    KEY_STEP: tau,
-                }
                 # cost for all steps
                 step_costs = [tc.eval(**kwargs) for tc in self.costs]
 
@@ -154,16 +153,20 @@ class MPO(object):
 
             # add other constraints
             if self.constraints is not None:
-                kwargs = {
-                    KEY_WEIGHTS: w_next,
-                    KEY_TRADE_WEIGHTS: z,
-                    KEY_STEP: tau,
-                }
                 cons = [con.eval(**kwargs) for con in self.constraints]
                 con_exps += cons
 
             # validate that all constraints are DCP
             assert np.all((c.is_dcp() for c in con_exps))
+
+            # add risk penalty term if given
+            if self.risk_penalty is not None:
+                if verbose:
+                    print(f"Add risk penalty term.")
+                p = self.risk_penalty.eval(**kwargs)
+                assert p.is_dcp(), f"p.shape = {p.shape}, DCP = {p.is_dcp()}"
+                obj -= p
+                # obj -= self.risk_penalty.eval(**kwargs)
 
             prob = cvx.Problem(cvx.Maximize(obj), constraints=con_exps)
             sub_problems.append(prob)
