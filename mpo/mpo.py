@@ -108,9 +108,7 @@ class MPO(object):
         self.solver = solver
         self.solver_opts = {} if solver_opts is None else solver_opts
 
-    def solve(
-        self, init_mkt_values: pd.Series, verbose: bool = True
-    ) -> pd.Series:
+    def solve(self, init_mkt_values: pd.Series, verbose: bool = True) -> Dict:
         # normalise weights to 1
         nav = sum(init_mkt_values)
         assert nav > 0
@@ -184,19 +182,34 @@ class MPO(object):
 
         obj_value = sum(sub_problems).solve(solver=self.solver, verbose=verbose)
 
+        trade_weights = {idx: z_vars[idx].value for idx in range(len(z_vars))}
+        trade_weights = pd.DataFrame(trade_weights).T
+
+        position_wgts = {
+            idx: posn_wgts[idx].value for idx in range(len(posn_wgts))
+        }
+        position_wgts = pd.DataFrame(position_wgts).T
+
         if verbose:
             print(f"Final objective value = {obj_value}")
 
-            zd = {idx: z_vars[idx].value for idx in range(len(z_vars))}
-            zd = pd.DataFrame(zd).T
+            trade_weights = {
+                idx: z_vars[idx].value for idx in range(len(z_vars))
+            }
+            trade_weights = pd.DataFrame(trade_weights).T
 
             print("\nTrade weights:\n")
-            print(zd.to_string(float_format="{:.1%}".format))
+            print(trade_weights.to_string(float_format="{:.1%}".format))
 
-            zd = {idx: posn_wgts[idx].value for idx in range(len(posn_wgts))}
-            zd = pd.DataFrame(zd).T
+            print("\nTurnover:\n")
+            print(
+                trade_weights.abs()
+                .sum(axis=1)
+                .to_string(float_format="{:.1%}".format)
+            )
+
             print("\nPost-Trade Position weights:\n")
-            print(zd.to_string(float_format="{:.1%}".format))
+            print(position_wgts.to_string(float_format="{:.1%}".format))
             # for idx in range(len(posn_wgts)):
             #     print(
             #         f"Step: {idx} - {posn_wgts[idx].value}, sum = {np.sum(posn_wgts[idx].value):.3e}"
@@ -205,4 +218,10 @@ class MPO(object):
             z_vars[0].value * nav, index=init_mkt_values.index
         )
 
-        return trade_values, obj_value
+        output = dict()
+        output["trade_values"] = trade_values
+        output["objective"] = obj_value
+        output["trade_weights"] = trade_weights
+        output["position_weights"] = position_wgts
+
+        return output

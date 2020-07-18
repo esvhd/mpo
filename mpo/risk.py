@@ -2,7 +2,7 @@ import numpy as np
 import cvxpy as cvx
 from cvxpy.expressions.expression import Expression
 from abc import abstractmethod
-from typing import Iterable, Union
+from typing import Iterable, Union, List, Dict
 
 from mpo.common import (
     KEY_WEIGHTS,
@@ -164,3 +164,17 @@ class RiskPenalty(object):
         assert risk.is_dcp()
         gamma_t = self.gamma[step]
         return gamma_t * risk
+
+
+class WorseCaseRisk(BaseRiskModel):
+    def __init__(self, risk_models: List[BaseRiskModel], kwargs: Dict = None):
+        super().__init__()
+
+        self.risk_models = risk_models
+        self.kwargs = kwargs
+
+    def eval(self, **kwargs) -> Expression:
+        risks = [
+            model.eval(**kwargs, **self.kwargs) for model in self.risk_models
+        ]
+        return cvx.maximum(*risks)

@@ -57,7 +57,10 @@ def test_mpo_simple():
     cons = [C.LongOnly()]
 
     prob = M.MPO(forecasts, constraints=cons)
-    trade_vals, obj_val = prob.solve(init_mkt_values, verbose=True)
+    output = prob.solve(init_mkt_values, verbose=True)
+
+    trade_vals = output.get("trade_values")
+    obj_val = output.get("objective")
 
     assert np.isclose(obj_val, exp_max, rtol=1.0e-7)
     assert len(trade_vals) == N
@@ -85,7 +88,10 @@ def test_mpo_tcost():
     cons = [C.LongOnly()]
 
     prob = M.MPO(forecasts, constraints=cons, costs=costs)
-    trade_vals, obj_val = prob.solve(init_mkt_values, verbose=True)
+    output = prob.solve(init_mkt_values, verbose=True)
+
+    trade_vals = output.get("trade_values")
+    obj_val = output.get("objective")
 
     assert len(trade_vals) == N
     assert not np.isnan(obj_val)
@@ -136,7 +142,10 @@ def test_factor_penalty():
 
     # add risk model
     prob = M.MPO(forecasts, constraints=cons, costs=costs, risk_penalty=penalty)
-    trade_vals, obj_val = prob.solve(init_mkt_values, verbose=True)
+    output = prob.solve(init_mkt_values, verbose=True)
+
+    trade_vals = output.get("trade_values")
+    obj_val = output.get("objective")
 
     assert len(trade_vals) == N
     assert not np.isnan(obj_val)
@@ -144,3 +153,26 @@ def test_factor_penalty():
     print(f"Trade values = {trade_vals}")
 
     # assert np.isclose(obj_val, 0.14478828790994064, rtol=1.0e-7)
+
+
+def test_max_turnover():
+    # test MPO with no t-cost and constraints
+    N = 10
+    rtns = sim.generate_forecasts(n_periods=3, N=N, seed=9984)
+    forecasts = M.MPOReturnForecast(rtns)
+
+    init_mkt_values = pd.Series([100.0 for _ in range(N)])
+
+    MAX_TO = 0.5
+    cons = [C.LongOnly(), C.MaxTurnover(MAX_TO)]
+
+    prob = M.MPO(forecasts, constraints=cons)
+    output = prob.solve(init_mkt_values, verbose=True)
+
+    trade_vals = output.get("trade_values")
+    trade_weights = output.get("trade_weights")
+
+    assert len(trade_vals) == N
+    assert not np.isnan(trade_vals).any()
+
+    assert (trade_weights.abs().sum(axis=1) <= MAX_TO).all()

@@ -5,7 +5,7 @@ from abc import abstractmethod
 import cvxpy as cvx
 from cvxpy.expressions.expression import Expression
 
-from mpo.common import KEY_WEIGHTS, KEY_STEP
+from mpo.common import KEY_WEIGHTS, KEY_STEP, KEY_TRADE_WEIGHTS
 
 # KEY_WEIGHTS = "weights"
 # KEY_TRADE_WEIGHTS = "trades"
@@ -19,6 +19,18 @@ class BaseConstraint(object):
     @abstractmethod
     def eval(self, **kwargs) -> Expression:
         pass
+
+
+class MaxTurnover(BaseConstraint):
+    def __init__(self, twoside_turnover):
+        super().__init__()
+        assert twoside_turnover > 0
+        self.max_turnover = twoside_turnover
+
+    def eval(self, **kwargs) -> Expression:
+        trades = kwargs.get(KEY_TRADE_WEIGHTS)
+        assert trades is not None
+        return cvx.norm1(trades) <= self.max_turnover
 
 
 class LongOnly(BaseConstraint):
