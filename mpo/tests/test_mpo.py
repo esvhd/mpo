@@ -61,6 +61,7 @@ def test_mpo_simple():
 
     assert np.isclose(obj_val, exp_max, rtol=1.0e-7)
     assert len(trade_vals) == N
+    assert not np.isnan(trade_vals).any()
     print(f"Trade values = {trade_vals}")
 
 
@@ -87,6 +88,8 @@ def test_mpo_tcost():
     trade_vals, obj_val = prob.solve(init_mkt_values, verbose=True)
 
     assert len(trade_vals) == N
+    assert not np.isnan(obj_val)
+    assert not np.isnan(trade_vals).any()
     print(f"Trade values = {trade_vals}")
 
     assert np.isclose(obj_val, 0.14478828790994064, rtol=1.0e-7)
@@ -136,6 +139,8 @@ def test_factor_penalty():
     trade_vals, obj_val = prob.solve(init_mkt_values, verbose=True)
 
     assert len(trade_vals) == N
+    assert not np.isnan(obj_val)
+    assert not np.isnan(trade_vals).any()
     print(f"Trade values = {trade_vals}")
 
     # assert np.isclose(obj_val, 0.14478828790994064, rtol=1.0e-7)
