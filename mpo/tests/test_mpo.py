@@ -8,6 +8,21 @@ import mpo.simulation as sim
 import mpo.risk as risk
 
 
+def _run_mpo_simple(cons=None, costs=None, risk=None, seed=9984):
+    # test MPO with no t-cost and constraints
+    N = 10
+    rtns = sim.generate_forecasts(n_periods=3, N=N, seed=seed)
+    print(rtns.to_string(float_format="{:.1%}".format))
+    forecasts = M.MPOReturnForecast(rtns)
+
+    init_mkt_values = pd.Series([100.0 for _ in range(N)])
+
+    prob = M.MPO(forecasts, constraints=cons, costs=costs, risk_penalty=risk)
+    output = prob.solve(init_mkt_values, verbose=True)
+
+    return output
+
+
 def test_MPOReturnForecast_weighted_returns():
     rtns = sim.generate_forecasts(n_periods=3, N=10)
     z = cvx.Variable(10)
@@ -176,3 +191,152 @@ def test_max_turnover():
     assert not np.isnan(trade_vals).any()
 
     assert (trade_weights.abs().sum(axis=1) <= MAX_TO).all()
+
+
+def test_NoTrade():
+    # test MPO with no t-cost and constraints
+    N = 10
+    rtns = sim.generate_forecasts(n_periods=3, N=N, seed=9984)
+    print(rtns.to_string(float_format="{:.1%}".format))
+    forecasts = M.MPOReturnForecast(rtns)
+
+    init_mkt_values = pd.Series([100.0 for _ in range(N)])
+
+    no_trade_idx = pd.Series([0, 7])
+    cons = [C.LongOnly(), C.NoTrade(no_trade_idx)]
+
+    prob = M.MPO(forecasts, constraints=cons)
+    output = prob.solve(init_mkt_values, verbose=True)
+
+    trade_vals = output.get("trade_values")
+    trade_weights = output.get("trade_weights")
+
+    assert len(trade_vals) == N
+    assert not np.isnan(trade_vals).any()
+
+    assert np.allclose(trade_vals[no_trade_idx.values], 0.0, atol=1e-6)
+    assert np.allclose(
+        trade_weights.iloc[:, no_trade_idx.values], 0.0, atol=1e-6
+    )
+
+
+def test_NoBuy():
+    # test MPO with no t-cost and constraints
+    N = 10
+    rtns = sim.generate_forecasts(n_periods=3, N=N, seed=9984)
+    print(rtns.to_string(float_format="{:.1%}".format))
+    forecasts = M.MPOReturnForecast(rtns)
+
+    init_mkt_values = pd.Series([100.0 for _ in range(N)])
+
+    no_trade_idx = pd.Series([0, 7])
+    cons = [C.LongOnly(), C.NoBuy(no_trade_idx)]
+
+    prob = M.MPO(forecasts, constraints=cons)
+    output = prob.solve(init_mkt_values, verbose=True)
+
+    trade_vals = output.get("trade_values")
+    trade_weights = output.get("trade_weights")
+
+    assert len(trade_vals) == N
+    assert not np.isnan(trade_vals).any()
+
+    # robust way to test <= in numpy
+    assert np.all(
+        np.less(trade_vals[no_trade_idx.values], 0.0)
+        | np.isclose(trade_vals[no_trade_idx.values], 0.0, atol=1e-6)
+    )
+
+    # assert np.allclose(trade_weights.iloc[:, no_trade_idx.values], 0.0)
+    assert np.all(
+        np.less(trade_weights.iloc[:, no_trade_idx.values], 0.0)
+        | np.isclose(trade_weights.iloc[:, no_trade_idx.values], 0.0, atol=1e-6)
+    )
+
+
+def test_NoSell():
+    # test MPO with no t-cost and constraints
+    N = 10
+    rtns = sim.generate_forecasts(n_periods=3, N=N, seed=9984)
+    print(rtns.to_string(float_format="{:.1%}".format))
+    forecasts = M.MPOReturnForecast(rtns)
+
+    init_mkt_values = pd.Series([100.0 for _ in range(N)])
+
+    no_trade_idx = pd.Series([0, 6])
+    cons = [C.LongOnly(), C.NoSell(no_trade_idx)]
+
+    prob = M.MPO(forecasts, constraints=cons)
+    output = prob.solve(init_mkt_values, verbose=True)
+
+    trade_vals = output.get("trade_values")
+    trade_weights = output.get("trade_weights")
+
+    assert len(trade_vals) == N
+    assert not np.isnan(trade_vals).any()
+
+    # robust way to test <= in numpy
+    assert np.all(
+        np.greater(trade_vals[no_trade_idx.values], 0.0)
+        | np.isclose(trade_vals[no_trade_idx.values], 0.0, atol=1e-6)
+    )
+
+    # assert np.allclose(trade_weights.iloc[:, no_trade_idx.values], 0.0)
+    assert np.all(
+        np.greater(trade_weights.iloc[:, no_trade_idx.values], 0.0)
+        | np.isclose(trade_weights.iloc[:, no_trade_idx.values], 0.0, atol=1e-6)
+    )
+
+
+def test_MaxPositionLimit_with_bench():
+    # test max +10% vs bench
+    MAX_VAL = 0.1
+    max_limits = pd.Series(np.ones(10) * MAX_VAL)
+    bench_wgts = pd.Series(np.ones(10) * 0.1)
+    cons = [C.LongOnly(), C.MaxPositionLimit(max_limits, bench_wgts)]
+
+    output = _run_mpo_simple(cons=cons)
+
+    # trade_vals = output.get("trade_values")
+    trade_weights = output.get("trade_weights")
+
+    rel_wgt = trade_weights - bench_wgts
+
+    # all relative weights should be <= 10%
+    flags = np.less(rel_wgt, MAX_VAL) | np.isclose(rel_wgt, MAX_VAL, atol=1e-6)
+    assert np.all(flags)
+
+    # test multi-step limits
+    max_limits = np.ones(10 * 3).reshape((3, 10)) * MAX_VAL
+    bench_wgts = np.ones(10 * 3).reshape((3, 10)) * 0.1
+    cons = [C.LongOnly(), C.MaxPositionLimit(max_limits, bench_wgts)]
+
+    output = _run_mpo_simple(cons=cons)
+
+    # trade_vals = output.get("trade_values")
+    trade_weights = output.get("trade_weights")
+
+    rel_wgt = trade_weights - bench_wgts
+
+    # all relative weights should be <= 10%
+    flags = np.less(rel_wgt, MAX_VAL) | np.isclose(rel_wgt, MAX_VAL, atol=1e-6)
+    assert np.all(flags)
+
+
+def test_MaxPositionLimit_no_bench():
+    # test max +10% vs bench
+    MAX_VAL = 0.2
+    max_limits = pd.Series(np.ones(10) * MAX_VAL)
+    cons = [C.LongOnly(), C.MaxPositionLimit(max_limits, bench_weights=None)]
+
+    output = _run_mpo_simple(cons=cons)
+
+    # trade_vals = output.get("trade_values")
+    trade_weights = output.get("trade_weights")
+
+    # all relative weights should be <= 10%
+    flags = np.less(trade_weights, MAX_VAL) | np.isclose(
+        trade_weights, MAX_VAL, atol=1e-6
+    )
+
+    assert np.all(flags)
