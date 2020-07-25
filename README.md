@@ -13,7 +13,7 @@ See code docs for exact data types for these inputs.
 
 * `T` - timestep index
 * `N` - no. of assets, including cash as there are many cash related
-constraints. Cash item is assumed to be the **last** item, i.e. $N^{th}$ item.
+constraints. Cash item is assumed to be the **last** item, i.e. N-th item.
 * `K` - no. of factors in a factor model
 
 **Return forecasts** `pd.dataframe` of shape: `(T, N)` .
