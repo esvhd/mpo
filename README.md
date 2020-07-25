@@ -9,24 +9,23 @@ Happy optimizing. Contributon welcome.
 
 ## Data Dimensions
 
-See code docs for exact data types for these inputs. Here I just make note
-of the shapes for them.
+See code docs for exact data types for these inputs.
 
 * `T` - timestep index
 * `N` - no. of assets, including cash as there are many cash related
 constraints. Cash item is assumed to be the **last** item, i.e. $N^{th}$ item.
 * `K` - no. of factors in a factor model
 
-**Return forecasts** shape: `(T, N)`
+**Return forecasts** `pd.dataframe` of shape: `(T, N)` .
 
 To use **factor risk model**, multiple factor related matrices must be provided,
 such as factor and specific risk covariance, factor exposure.
 
-* Factor Covariance shape: `(T, K, K)`
-* Specific Covariance shape: `(T, N, N)`
-* Factor Exposure shape: `(T, N, K)`
+* Factor Covariance `np.ndarray` of shape: `(T, K, K)`
+* Specific Covariance `np.ndarray` ofshape: `(T, N, N)`
+* Factor Exposure `np.ndarray` ofshape: `(T, N, K)`
 
 **Transaction Costs** can be either:s
 
-* an array of shape `(N, )`, or
-* dataframe of shape `(T, N)`
+* `np.ndarray` of shape `(N, )`, or
+* `pd.dataframe` of shape `(T, N)`
