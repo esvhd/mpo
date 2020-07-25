@@ -109,6 +109,24 @@ class MPO(object):
         self.solver_opts = {} if solver_opts is None else solver_opts
 
     def solve(self, init_mkt_values: pd.Series, verbose: bool = True) -> Dict:
+        """Solve MPO problem.
+
+        Parameters
+        ----------
+        init_mkt_values : pd.Series
+            initial market value for each asset, length N.
+        verbose : bool, optional
+            print info, by default True
+
+        Returns
+        -------
+        Dict
+            objective : float
+            trade_values : pd.Series, (N, )
+            trade_weights : pd.DataFrame, (T, N)
+            position_weights: pd.DataFrame, (T, N)
+
+        """
         # normalise weights to 1
         nav = sum(init_mkt_values)
         assert nav > 0

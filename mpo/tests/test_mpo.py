@@ -8,6 +8,14 @@ import mpo.simulation as sim
 import mpo.risk as risk
 
 
+def leq(x, MAX_VAL, atol=1e-6):
+    return np.less(x, MAX_VAL) | np.isclose(x, MAX_VAL, atol=atol)
+
+
+def geq(x, MIN_VAL, atol=1e-6):
+    return np.greater(x, MIN_VAL) | np.isclose(x, MIN_VAL, atol=atol)
+
+
 def _run_mpo_simple(cons=None, costs=None, risk=None, seed=9984):
     # test MPO with no t-cost and constraints
     N = 10
@@ -340,3 +348,33 @@ def test_MaxPositionLimit_no_bench():
     )
 
     assert np.all(flags)
+
+
+def test_MaxAggConstraint():
+    agg_keys = pd.Series([0, 0, 0, 1, 1, 1, 2, 2, 2, 3])
+    # cash limit can be 100%
+    key_limits = pd.Series([0.2, 0.25, 0.3, 1.0])
+    K = len(key_limits)
+
+    # (N, K)
+    one_hot = pd.get_dummies(agg_keys)
+    assert one_hot.shape[1] == len(key_limits)
+    key_limits = key_limits.loc[one_hot.columns]
+
+    agg_con = C.MaxAggregationConstraint(agg_keys, key_limits)
+    cons = [C.LongOnly(), agg_con]
+
+    output = _run_mpo_simple(cons=cons)
+
+    # dataframe of (T, N)
+    positions = output.get("position_weights")
+
+    agg_vals = positions.values @ one_hot.values
+    agg_vals = pd.DataFrame(
+        agg_vals, index=positions.index, columns=one_hot.columns
+    )
+
+    dist = key_limits.values.reshape(1, K) - agg_vals.values
+    print(f"Dist to limits:\n\n {dist}")
+
+    assert np.all(geq(dist, 0.0))

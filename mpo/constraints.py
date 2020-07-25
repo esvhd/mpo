@@ -63,6 +63,7 @@ class MaxPositionLimit(BaseConstraint):
             limit for cash.
 
             If limits.ndim > 1 then assume that these are indexed by time steps.
+
         bench_weights : Union[np.ndarray, pd.Series], optional
             Benchmark weights, by default None. If given then max weight limits
             are imposed on relative to benchmark weights.
@@ -104,6 +105,13 @@ class MaxPositionLimit(BaseConstraint):
 
 class MaxLeverageLimit(BaseConstraint):
     def __init__(self, max_leverage: float):
+        """Max leverage limit.
+
+        Parameters
+        ----------
+        max_leverage : float
+            Max leverage, e.g. for 2x leverage set this to 2.0
+        """
         super().__init__()
         self.max_leverage = max_leverage
 
@@ -115,6 +123,13 @@ class MaxLeverageLimit(BaseConstraint):
 
 class MinCash(BaseConstraint):
     def __init__(self, min_weight: float):
+        """Min cash pct constraint
+
+        Parameters
+        ----------
+        min_weight : float
+            min weight in decimal, e.g. for 1% set this to 0.01.
+        """
         super().__init__()
         self.min_weight = min_weight
 
@@ -133,7 +148,7 @@ class NoBuy(BaseConstraint):
         Parameters
         ----------
         asset_idx : pd.Series
-            A list of security index number not to buy.
+            values of this series are indices of assets NOT to be bought.
         """
         super().__init__()
         self.asset_idx = asset_idx
@@ -147,6 +162,13 @@ class NoBuy(BaseConstraint):
 
 class NoSell(BaseConstraint):
     def __init__(self, asset_idx: pd.Series):
+        """[summary]
+
+        Parameters
+        ----------
+        asset_idx : pd.Series
+            values of this series are indices of assets NOT to be sold.
+        """
         super().__init__()
         self.asset_idx = asset_idx
 
@@ -159,6 +181,13 @@ class NoSell(BaseConstraint):
 
 class NoTrade(BaseConstraint):
     def __init__(self, asset_idx: pd.Series):
+        """No trade constraint
+
+        Parameters
+        ----------
+        asset_idx : pd.Series
+            values of this series are indices of assets NOT to be traded.
+        """
         super().__init__()
         self.asset_idx = asset_idx
 
@@ -167,6 +196,64 @@ class NoTrade(BaseConstraint):
         # asset list must be at most the same length as trade weight array
         assert trades.shape[0] >= len(self.asset_idx)
         return trades[self.asset_idx.values] == 0.0
+
+
+class MaxAggregationConstraint(BaseConstraint):
+    def __init__(self, agg_keys: pd.Series, key_limits: pd.Series):
+        """Max aggregation constraints, such as issuer, sector, rating, etc.
+
+        N - no. of assets
+        K - no. of unique aggregated groups
+
+        Parameters
+        ----------
+        agg_keys : pd.Series
+            Length N, the values of this series are the aggreation keys,
+            e.g. ticker / sector / rating of each asset.
+            This is converted into a one-hot matrix of shape (N, K)
+        key_limits : pd.Series
+            Length K, will be reorderd to match one-hot matrix column order.
+        """
+        super().__init__()
+        # make sure all agg keys have key limits
+        keys = agg_keys.unique()
+        flags = [x in key_limits.index for x in keys]
+        # all keys have limits
+        assert np.all(flags)
+        # no. of keys match
+        assert len(flags) == len(key_limits)
+
+        # matrix (N, K), N - no. of assets, K - no. of unique agg keys
+        self.agg_keys = pd.get_dummies(agg_keys)
+
+        # make sure limits and aggregation matrices are aligned.
+        # This is needed because later on, values and limits for each group
+        # is compared in the correct order.
+        assert len(key_limits) == len(self.agg_keys.columns)
+        mask = [x in key_limits.index for x in self.agg_keys.columns]
+        # all columns must be in key limit index
+        assert np.all(mask)
+
+        key_limits = key_limits.loc[self.agg_keys.columns]
+        self.key_limits = key_limits
+
+    def eval(self, **kwargs) -> Expression:
+        weights = kwargs.get(KEY_WEIGHTS)
+        assert weights is not None
+
+        # weights must have the same length as agg_keys
+        N, = weights.shape
+        assert N == len(self.agg_keys)
+
+        weights = cvx.reshape(weights, (1, N))
+        assert weights.shape == (1, N)
+
+        # (1, N) x (N, K) = (1, K)
+        agg_vals = weights @ self.agg_keys.values
+        _, K = agg_vals.shape
+        vals = cvx.reshape(agg_vals, (K,))
+
+        return vals <= self.key_limits.values
 
 
 class BaseCost(object):
