@@ -7,6 +7,13 @@ I like. Plus it's a good way to make sure my understanding was correct.
 
 Happy optimizing. Contributon welcome.
 
+This version as of 2020-07 works for latest versions of:
+
+```{python}
+cvxpy 1.1.3
+padnas 1.0.5
+```
+
 ## Data Dimensions
 
 See code docs for exact data types for these inputs.
