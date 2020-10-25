@@ -10,6 +10,7 @@ from mpo.common import (
     KEY_STEP,
     KEY_TRADE_WEIGHTS,
     KEY_BENCHMARK_WEIGHTS,
+    KEY_ASSET_PROPERTY,
 )
 
 # KEY_WEIGHTS = "weights"
@@ -199,7 +200,12 @@ class NoTrade(BaseConstraint):
 
 
 class MaxAggregationConstraint(BaseConstraint):
-    def __init__(self, agg_keys: pd.Series, key_limits: pd.Series):
+    def __init__(
+        self,
+        agg_keys: pd.Series,
+        key_limits: pd.Series,
+        asset_property: pd.Series = None,
+    ):
         """Max aggregation constraints, such as issuer, sector, rating, etc.
 
         N - no. of assets
@@ -213,6 +219,10 @@ class MaxAggregationConstraint(BaseConstraint):
             This is converted into a one-hot matrix of shape (N, K)
         key_limits : pd.Series
             Length K, will be reorderd to match one-hot matrix column order.
+        asset_prpoerty : pd.Series
+            Length N, a property for assets, such as OAD for each bond,
+            to be weighted in eval(),
+            e.g. in sector or rating bucket constraints.
         """
         super().__init__()
         # make sure all agg keys have key limits
@@ -237,16 +247,28 @@ class MaxAggregationConstraint(BaseConstraint):
         key_limits = key_limits.loc[self.agg_keys.columns]
         self.key_limits = key_limits
 
+        # No. of assets match
+        self.asset_property = asset_property
+        if asset_property is not None:
+            assert agg_keys.shape == asset_property.shape
+
     def eval(self, **kwargs) -> Expression:
         weights = kwargs.get(KEY_WEIGHTS)
         assert weights is not None
 
         # weights must have the same length as agg_keys
-        N, = weights.shape
+        (N,) = weights.shape
         assert N == len(self.agg_keys)
 
         weights = cvx.reshape(weights, (1, N))
         assert weights.shape == (1, N)
+
+        if self.asset_property is not None:
+            # not a simple % weight constraint, more like CTSD.
+            # reshape to (1, N)
+            value = self.asset_property.values.reshape(weights.shape)
+            weights = cvx.multiply(weights, value)
+            assert weights.shape == (1, N)
 
         # (1, N) x (N, K) = (1, K)
         agg_vals = weights @ self.agg_keys.values

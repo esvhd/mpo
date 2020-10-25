@@ -378,3 +378,39 @@ def test_MaxAggConstraint():
     print(f"Dist to limits:\n\n {dist}")
 
     assert np.all(geq(dist, 0.0))
+
+
+def test_MaxAggConstraint_with_property():
+    agg_keys = pd.Series([0, 0, 0, 1, 1, 1, 2, 2, 2, 3])
+    asset_prop = pd.Series(np.ones_like(agg_keys.values) * 0.5)
+    # cash limit can be 100%
+    key_limits = pd.Series([0.2, 0.25, 0.3, 1.0]) * 0.5
+    K = len(key_limits)
+
+    # (N, K)
+    one_hot = pd.get_dummies(agg_keys)
+    assert one_hot.shape[1] == len(key_limits)
+    key_limits = key_limits.loc[one_hot.columns]
+
+    agg_con = C.MaxAggregationConstraint(agg_keys, key_limits, asset_prop)
+    cons = [C.LongOnly(), agg_con]
+
+    output = _run_mpo_simple(cons=cons)
+
+    # dataframe of (T, N)
+    positions = output.get("position_weights")
+    T, _ = positions.shape
+
+    # reshape property
+    prop_mat = np.tile(asset_prop.values, T).reshape((T, -1))
+
+    # [(T, N) \odot (T, N)] * (N, K)
+    agg_vals = np.multiply(positions.values, prop_mat) @ one_hot.values
+    agg_vals = pd.DataFrame(
+        agg_vals, index=positions.index, columns=one_hot.columns
+    )
+
+    dist = key_limits.values.reshape(1, K) - agg_vals.values
+    print(f"Dist to limits:\n\n {dist}")
+
+    assert np.all(geq(dist, 0.0))
