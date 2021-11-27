@@ -414,3 +414,30 @@ def test_MaxAggConstraint_with_property():
     print(f"Dist to limits:\n\n {dist}")
 
     assert np.all(geq(dist, 0.0))
+
+
+def test_AggEqualityConstraint():
+    asset_prop = pd.Series([5, 2, 4, 6, 9, 2, 5, 6, 5, 6])
+    target_value = asset_prop.mean() * 1.1
+
+    agg_con = C.AggregationEqualityConstraint(
+        asset_prop, target_value, tolerance=1e-7
+    )
+    cons = [C.LongOnly(), agg_con]
+
+    output = _run_mpo_simple(cons=cons)
+
+    # dataframe of (T, N)
+    positions = output.get("position_weights")
+    T, N = positions.shape
+
+    # reshape property to (T, N)
+    # prop_mat = np.tile(asset_prop.values, T).reshape((N, -1))
+    prop_mat = asset_prop.values.reshape((N, -1))
+
+    # [(T, N) \odot (N, 1)] -> T x 1
+    agg_vals = positions @ prop_mat
+
+    print(f"Cons values vs target {target_value}:\n{agg_vals}")
+
+    assert np.allclose(agg_vals - target_value, 0.0, atol=1e-5)

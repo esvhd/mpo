@@ -197,8 +197,14 @@ class MPO(object):
             sub_problems[-1].constraints += [
                 w_next == self.terminal_weights.values
             ]
+        probs = sum(sub_problems)
+        obj_value = probs.solve(solver=self.solver, verbose=verbose)
 
-        obj_value = sum(sub_problems).solve(solver=self.solver, verbose=verbose)
+        if verbose:
+            print(f"Problem solve status: {probs.status}")
+
+        if probs.status == "infeasible" or not np.isfinite(obj_value):
+            raise ValueError("Problem infeasible or objective not finite.")
 
         trade_weights = {idx: z_vars[idx].value for idx in range(len(z_vars))}
         trade_weights = pd.DataFrame(trade_weights).T

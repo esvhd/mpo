@@ -278,6 +278,51 @@ class MaxAggregationConstraint(BaseConstraint):
         return vals <= self.key_limits.values
 
 
+class AggregationEqualityConstraint(BaseConstraint):
+    def __init__(
+        self, asset_property: pd.Series, target: float, tolerance=1e-7
+    ):
+        """Full aggregation equality constraint, e.g. portfolio level equality
+        constraint.
+
+        Parameters
+        ----------
+        asset_property : pd.Series
+            asset properties
+        target: float
+            target value to be reached.
+        tolerance : [type], optional
+            [description], by default 1e-5
+        """
+        super().__init__()
+
+        assert asset_property.ndim == 1
+
+        self.asset_property = asset_property
+        self.tolerance = tolerance
+        self.target = np.abs(target)
+
+    def eval(self, **kwargs) -> Expression:
+        weights = kwargs.get(KEY_WEIGHTS)
+        assert weights is not None
+
+        # weights must have the same length as no. of assets
+        (N,) = weights.shape
+        assert N == len(self.asset_property)
+
+        weights = cvx.reshape(weights, (1, N))
+        assert weights.shape == (1, N)
+
+        props = cvx.reshape(self.asset_property.values, (N, 1))
+        agg_value = weights @ props
+        # (1, N) x (N, 1) = (1, 1)
+        assert agg_value.shape == (1, 1)
+
+        diff = cvx.norm1(agg_value - self.target)
+
+        return diff <= self.tolerance
+
+
 class BaseCost(object):
     def __init__(self):
         super().__init__()

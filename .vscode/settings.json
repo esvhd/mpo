@@ -1,5 +1,6 @@
 {
     "python.autoComplete.extraPaths": [
         "~/git/mpo"
-    ]
+    ],
+    "python.pythonPath": "/usr/anaconda3/bin/python"
 }
