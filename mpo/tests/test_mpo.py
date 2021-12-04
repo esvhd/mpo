@@ -17,7 +17,7 @@ def geq(x, MIN_VAL, atol=1e-6):
 
 
 def _run_mpo_simple(cons=None, costs=None, risk=None, seed=9984):
-    # test MPO with no t-cost and constraints
+    # test MPO with no t-cost and constraints, 3 periods by default.
     N = 10
     rtns = sim.generate_forecasts(n_periods=3, N=N, seed=seed)
     print(rtns.to_string(float_format="{:.1%}".format))
@@ -417,8 +417,14 @@ def test_MaxAggConstraint_with_property():
 
 
 def test_AggEqualityConstraint():
-    asset_prop = pd.Series([5, 2, 4, 6, 9, 2, 5, 6, 5, 6])
-    target_value = asset_prop.mean() * 1.1
+    asset_prop = pd.DataFrame(
+        [
+            [5, 2, 4, 6, 9, 2, 5, 6, 5, 6],
+            [5, 2, 4, 6, 9, 2, 5, 6, 5, 6],
+            [5, 2, 4, 6, 9, 2, 5, 6, 5, 6],
+        ]
+    )
+    target_value = asset_prop.mean(axis=1) * 1.1
 
     agg_con = C.AggregationEqualityConstraint(
         asset_prop, target_value, tolerance=1e-7

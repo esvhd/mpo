@@ -88,7 +88,7 @@ class FactorRiskModel(BaseRiskModel):
         assert weights is not None
 
         # reshape for matrix algebra later
-        N, = weights.shape
+        (N,) = weights.shape
         weights = cvx.reshape(weights, (N, 1))
         assert N == self.factor_exposure.shape[1]
 
@@ -105,7 +105,7 @@ class FactorRiskModel(BaseRiskModel):
                 pass
 
             # assumes benchmark also has cash weights
-            N, = bench_weights.shape
+            (N,) = bench_weights.shape
             bench_weights = cvx.reshape(bench_weights, (N, 1))
             # turn into active weights
             weights -= bench_weights
@@ -121,6 +121,7 @@ class FactorRiskModel(BaseRiskModel):
         # (1, N) x (N, N) x (N, 1) = (1, 1)
         # port_risk = weights.T @ self.cov[step] @ weights
         cov = self.cov[step]
+        # quad_form return weights.T @ cov @ weights
         port_risk = cvx.quad_form(weights, cov)
 
         # reshape to scaler

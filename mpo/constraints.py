@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Union
+from typing import Union, List
 from abc import abstractmethod
 import cvxpy as cvx
 from cvxpy.expressions.expression import Expression
@@ -119,7 +119,10 @@ class MaxLeverageLimit(BaseConstraint):
     def eval(self, **kwargs) -> Expression:
         weights = kwargs.get(KEY_WEIGHTS)
         # assume last position is CASH, so exclude
-        return cvx.norm(weights[:-1], 1) <= self.max_leverage
+        # for norm calculation, see:
+        # https://www.omnicalculator.com/math/matrix-norm
+        # here we use infinite norm, which is the max of sums of all rows
+        return cvx.norm(weights[:-1], p="inf") <= self.max_leverage
 
 
 class MinCash(BaseConstraint):
@@ -280,23 +283,27 @@ class MaxAggregationConstraint(BaseConstraint):
 
 class AggregationEqualityConstraint(BaseConstraint):
     def __init__(
-        self, asset_property: pd.Series, target: float, tolerance=1e-7
+        self,
+        asset_property: pd.DataFrame,
+        target: Union[pd.Series, List[float]],
+        tolerance=1e-7,
     ):
         """Full aggregation equality constraint, e.g. portfolio level equality
         constraint.
 
         Parameters
         ----------
-        asset_property : pd.Series
-            asset properties
-        target: float
-            target value to be reached.
+        asset_property : pd.DataFrame
+            asset properties, T x N, N assets, T time steps
+        target: Union[pd.Series, List[float]]
+            target value to be reached. length = T
         tolerance : [type], optional
             [description], by default 1e-5
         """
         super().__init__()
 
-        assert asset_property.ndim == 1
+        assert asset_property.ndim == 2
+        assert len(asset_property) == len(target)
 
         self.asset_property = asset_property
         self.tolerance = tolerance
@@ -308,19 +315,28 @@ class AggregationEqualityConstraint(BaseConstraint):
 
         # weights must have the same length as no. of assets
         (N,) = weights.shape
-        assert N == len(self.asset_property)
+        T, K = self.asset_property.shape
+        assert N == K
 
         weights = cvx.reshape(weights, (1, N))
         assert weights.shape == (1, N)
 
-        props = cvx.reshape(self.asset_property.values, (N, 1))
+        # props = cvx.reshape(self.asset_property.values, (N, -1))
+        # convert to N x T
+        props = self.asset_property.values.T
         agg_value = weights @ props
-        # (1, N) x (N, 1) = (1, 1)
-        assert agg_value.shape == (1, 1)
+        # (1, N) x (N, T) = (1, T)
+        assert agg_value.shape == (1, T)
+        # print(weights.shape, props.shape, agg_value.shape)
+        # print("agg_value = \n", agg_value)
+        # print(f"target value = {self.target.shape}")
 
-        diff = cvx.norm1(agg_value - self.target)
+        target = cvx.reshape(self.target, (1, T))
 
-        return diff <= self.tolerance
+        # norm1 returns the max of each summed columns
+        diff = cvx.norm1(agg_value - target)
+
+        return np.all(diff <= self.tolerance)
 
 
 class BaseCost(object):
