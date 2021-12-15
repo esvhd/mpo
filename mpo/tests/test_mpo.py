@@ -417,6 +417,7 @@ def test_MaxAggConstraint_with_property():
 
 
 def test_AggEqualityConstraint():
+    # T=3 time steps, N=10 assets
     asset_prop = pd.DataFrame(
         [
             [5, 2, 4, 6, 9, 2, 5, 6, 5, 6],
@@ -439,11 +440,14 @@ def test_AggEqualityConstraint():
 
     # reshape property to (T, N)
     # prop_mat = np.tile(asset_prop.values, T).reshape((N, -1))
-    prop_mat = asset_prop.values.reshape((N, -1))
+    # prop_mat = asset_prop.values.reshape((N, -1))
 
-    # [(T, N) \odot (N, 1)] -> T x 1
-    agg_vals = positions @ prop_mat
+    # # [(T, N) \odot (N, 1)] -> T x 1
+    # agg_vals = positions @ prop_mat
 
-    print(f"Cons values vs target {target_value}:\n{agg_vals}")
+    prop_mat = asset_prop.values
+    agg_vals = np.sum(positions * prop_mat, axis=1)
+
+    print(f"Cons values vs target:\n{target_value}\n vs \n{agg_vals}")
 
     assert np.allclose(agg_vals - target_value, 0.0, atol=1e-5)

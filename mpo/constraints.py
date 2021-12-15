@@ -311,6 +311,7 @@ class AggregationEqualityConstraint(BaseConstraint):
 
     def eval(self, **kwargs) -> Expression:
         weights = kwargs.get(KEY_WEIGHTS)
+        step = kwargs.get(KEY_STEP)
         assert weights is not None
 
         # weights must have the same length as no. of assets
@@ -322,21 +323,29 @@ class AggregationEqualityConstraint(BaseConstraint):
         assert weights.shape == (1, N)
 
         # props = cvx.reshape(self.asset_property.values, (N, -1))
-        # convert to N x T
-        props = self.asset_property.values.T
+        # find current time step, convert to N x 1
+        props = self.asset_property.values[step].reshape((N, -1))
+        # (1, N) x (N, 1) = (1, 1)
         agg_value = weights @ props
-        # (1, N) x (N, T) = (1, T)
-        assert agg_value.shape == (1, T)
-        # print(weights.shape, props.shape, agg_value.shape)
-        # print("agg_value = \n", agg_value)
-        # print(f"target value = {self.target.shape}")
 
-        target = cvx.reshape(self.target, (1, T))
+        assert agg_value.shape == (1, 1)
+        # assert agg_value.shape == (1, T)
+
+        # target = cvx.reshape(self.target, (1, T))
+        target = self.target[step]
 
         # norm1 returns the max of each summed columns
-        diff = cvx.norm1(agg_value - target)
+        # diff = cvx.abs(cvx.norm1(agg_value - target))
+        diff = cvx.abs(agg_value - target)
+        diff_scaler = cvx.reshape(diff, ())
 
-        return np.all(diff <= self.tolerance)
+        # print(step, weights.shape, props.shape, agg_value.shape)
+        # print("agg_value = \n", agg_value)
+        # print(f"target value = {target}, diff = {diff_scaler}")
+
+        # return np.all(diff <= self.tolerance)
+
+        return diff_scaler <= self.tolerance
 
 
 class BaseCost(object):
